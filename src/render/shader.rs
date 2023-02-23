@@ -101,11 +101,23 @@ impl ShaderFile {
     }
 
     fn open_shader_source(path: &Path) -> Result<String, ShaderError> {
+        // first try to find the shader in the embedded shaders
         if let Some(embedded_shader) = Self::find_embedded_shader(path) {
-            Ok(embedded_shader.source.to_string())
-        } else {
-            Ok(fs::read_to_string(&path)?)
+            return Ok(embedded_shader.source.to_string());
         }
+
+        // if the shader does not exist on the filesystem
+        // try to find it in the embedded shaders
+        if !path.exists() {
+            let embedded_path = Path::new("embedded://").join(path);
+
+            if let Some(embedded_shader) = Self::find_embedded_shader(&embedded_path) {
+                return Ok(embedded_shader.source.to_string());
+            }
+        }
+
+        // otherwise just read the file from the filesystem
+        Ok(fs::read_to_string(path)?)
     }
 
     pub fn open(path: &Path) -> Result<Self, ShaderError> {
