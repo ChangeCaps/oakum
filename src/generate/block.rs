@@ -26,7 +26,7 @@ impl Generate for GrassBlock {
         5
     }
 
-    fn sdf(&self, point: Vec3) -> Option<Node> {
+    fn get_node(&self, point: Vec3) -> Option<Node> {
         let mut surface_offset = sperlin(point * Vec3::new(4.0, 6.0, 4.0)) * 0.2;
         let grass_offset = sperlin(point * Vec3::new(10.0, 0.0, 10.0)) * 0.5;
 

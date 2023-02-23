@@ -12,7 +12,7 @@ pub trait Generate {
     fn dimensions(&self) -> UVec3;
     fn depth(&self) -> u32;
 
-    fn sdf(&self, point: Vec3) -> Option<Node>;
+    fn get_node(&self, point: Vec3) -> Option<Node>;
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -53,7 +53,7 @@ impl Generate for Sphere {
         6
     }
 
-    fn sdf(&self, point: Vec3) -> Option<Node> {
+    fn get_node(&self, point: Vec3) -> Option<Node> {
         if point.length() < 1.0 {
             Some(Node::solid(255, 255, 255))
         } else {

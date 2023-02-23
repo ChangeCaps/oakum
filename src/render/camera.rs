@@ -93,7 +93,7 @@ impl Camera {
     }
 
     pub fn proj(&self, aspect: f32) -> Mat4 {
-        Mat4::perspective_rh(self.fov.to_radians(), aspect, 0.001, 1000.0)
+        Mat4::perspective_rh(self.fov.to_radians(), aspect, 0.01, 100.0)
     }
 
     pub fn view_proj(&self, aspect: f32) -> Mat4 {

@@ -42,6 +42,13 @@ impl Octree {
         0
     }
 
+    pub fn clear(&mut self) {
+        self.nodes.clear();
+        self.free_branches.clear();
+
+        self.nodes.push(Node::empty());
+    }
+
     pub fn push_branch(&mut self) -> u32 {
         if let Some(i) = self.free_branches.pop() {
             self[i..i + 8].fill(Node::empty());
@@ -78,7 +85,7 @@ impl Octree {
 
                     let point = Vec3::new(x, y, z) / dimensions.as_vec3();
 
-                    if let Some(node) = sdf.sdf(point) {
+                    if let Some(node) = sdf.get_node(point) {
                         let branch = Branch::new(IVec3::new(ix, iy, iz), depth);
                         octree.set(branch, node);
                     }

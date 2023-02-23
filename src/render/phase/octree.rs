@@ -85,8 +85,8 @@ impl OctreePipeline {
             push_constant_ranges: &[],
         });
 
-        let vertex_shader = open_shader(device, "assets/shaders/fullscreen.wgsl")?;
-        let fragment_shader = open_shader(device, "assets/shaders/pbr_frag.wgsl")?;
+        let vertex_shader = open_shader(device, "embedded://fullscreen.wgsl")?;
+        let fragment_shader = open_shader(device, "embedded://pbr_frag.wgsl")?;
 
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Octree Pipeline"),
@@ -690,10 +690,10 @@ impl OctreePhase {
                 resolve_target: None,
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Clear(wgpu::Color {
-                        r: 0.0,
-                        g: 0.0,
-                        b: 0.0,
-                        a: 0.0,
+                        r: 0.48,
+                        g: 0.84,
+                        b: 0.83,
+                        a: 1.0,
                     }),
                     store: true,
                 },

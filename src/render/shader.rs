@@ -5,6 +5,37 @@ use std::{
     sync::Mutex,
 };
 
+struct EmbeddedShader {
+    path: &'static str,
+    source: &'static str,
+}
+
+macro_rules! embedded_shader {
+    ($path:literal) => {
+        EmbeddedShader {
+            path: concat!("embedded://", $path),
+            source: include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/assets/shaders/",
+                $path
+            )),
+        }
+    };
+}
+
+const EMBEDDED_SHADERS: &[EmbeddedShader] = &[
+    embedded_shader!("camera.wgsl"),
+    embedded_shader!("common.wgsl"),
+    embedded_shader!("fullscreen.wgsl"),
+    embedded_shader!("fullscreen_input.wgsl"),
+    embedded_shader!("octree.wgsl"),
+    embedded_shader!("pbr_comp.wgsl"),
+    embedded_shader!("pbr_frag.wgsl"),
+    embedded_shader!("poisson.wgsl"),
+    embedded_shader!("ray.wgsl"),
+    embedded_shader!("tonemap.wgsl"),
+];
+
 #[derive(Clone, Debug)]
 pub struct ShaderInclude {
     /// The path of the included file.
@@ -63,8 +94,22 @@ impl ShaderFile {
         Ok(includes)
     }
 
+    fn find_embedded_shader(path: &Path) -> Option<&'static EmbeddedShader> {
+        EMBEDDED_SHADERS
+            .iter()
+            .find(|shader| Path::new(shader.path) == path)
+    }
+
+    fn open_shader_source(path: &Path) -> Result<String, ShaderError> {
+        if let Some(embedded_shader) = Self::find_embedded_shader(path) {
+            Ok(embedded_shader.source.to_string())
+        } else {
+            Ok(fs::read_to_string(&path)?)
+        }
+    }
+
     pub fn open(path: &Path) -> Result<Self, ShaderError> {
-        let source = fs::read_to_string(&path)?;
+        let source = Self::open_shader_source(path)?;
         let (source, pragma_once) = Self::strip_pragma_once(source);
         let includes = Self::find_include_directives(&source)?;
 

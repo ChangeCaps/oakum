@@ -33,7 +33,7 @@ fn main(in: VertexInput) -> VertexOutput {
 
 	out.position = vec4<f32>(coords, 0.0, 1.0);
 	out.clip = vec4<f32>(coords, 0.0, 1.0);
-	out.uv = coords * 0.5 + 0.5;
+	out.uv = coords * vec2<f32>(0.5, -0.5) + 0.5;
 
 	return out;
 }

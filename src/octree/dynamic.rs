@@ -79,6 +79,12 @@ impl DynamicOctree {
         }
     }
 
+    pub fn clear(&mut self) {
+        self.octree.clear();
+        self.segments.clear();
+        self.push_segment(Segment::new(0, 1));
+    }
+
     pub fn push_branch(&mut self) -> u32 {
         let index = self.octree.push_branch();
         self.push_segment(Segment::new(index, 8));

@@ -86,7 +86,8 @@ impl App {
 
             let scale = Mat4::from_scale(Vec3::splat(10.0));
             if let Some(hit) = self.world.octree.raycast(scale, ray) {
-                let branch = Branch::from_point(scale, hit.point, 10);
+                let mut branch = Branch::from_point(scale, hit.point, 10);
+                branch.path += hit.normal;
                 self.world.octree.difference(branch, 4, &self.sphere);
             }
         } else if self.mouse.is_pressed(MouseButton::Left)
@@ -98,7 +99,8 @@ impl App {
 
             let scale = Mat4::from_scale(Vec3::splat(10.0));
             if let Some(hit) = self.world.octree.raycast(scale, ray) {
-                let branch = Branch::from_point(scale, hit.point, 10);
+                let mut branch = Branch::from_point(scale, hit.point, 10);
+                branch.path += hit.normal;
                 self.world.octree.union(branch, 4, &self.sphere);
             }
         }
