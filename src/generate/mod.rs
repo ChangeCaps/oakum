@@ -40,3 +40,24 @@ impl PartialOrd for Sdf {
         self.distance.partial_cmp(&other.distance)
     }
 }
+
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Sphere;
+
+impl Generate for Sphere {
+    fn dimensions(&self) -> UVec3 {
+        UVec3::splat(32)
+    }
+
+    fn depth(&self) -> u32 {
+        6
+    }
+
+    fn sdf(&self, point: Vec3) -> Option<Node> {
+        if point.length() < 1.0 {
+            Some(Node::solid(255, 255, 255))
+        } else {
+            None
+        }
+    }
+}

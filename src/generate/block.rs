@@ -19,11 +19,11 @@ pub struct GrassBlock;
 
 impl Generate for GrassBlock {
     fn dimensions(&self) -> UVec3 {
-        UVec3::splat(16)
+        UVec3::splat(8)
     }
 
     fn depth(&self) -> u32 {
-        6
+        5
     }
 
     fn sdf(&self, point: Vec3) -> Option<Node> {
@@ -31,8 +31,8 @@ impl Generate for GrassBlock {
         let grass_offset = sperlin(point * Vec3::new(10.0, 0.0, 10.0)) * 0.5;
 
         let step_offset = sperlin(point * Vec3::new(10.0, 10.0, 10.0)) * 0.25;
-        let step = f32::floor((point.y + step_offset) * 4.0) / 4.0;
-        let mut color = Vec3::new(0.76 + step * 0.2, 0.48 + step * 0.15, 0.21 + step * 0.1);
+        let step = f32::floor((point.y + step_offset) * 2.0) / 2.0;
+        let mut color = Vec3::new(0.76 + step * 0.1, 0.48 + step * 0.05, 0.21 + step * 0.04);
 
         if sperlin(point * 8.0) > 0.8 {
             color = Vec3::splat(0.7);

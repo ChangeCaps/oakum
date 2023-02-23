@@ -18,7 +18,7 @@ impl Default for Camera {
     fn default() -> Self {
         Self {
             position: Vec3::ZERO,
-            distance: 2.0,
+            distance: 4.0,
             rotation: Vec3::new(-FRAC_2_PI, FRAC_2_PI, 0.0),
             fov: 60.0,
         }

@@ -151,7 +151,7 @@ fn octree_ray_cast_normalized(ray: Ray, main_ray: bool) -> OctreeHit {
 	var stack: array<u32, 32>;
 	stack[0] = parent;
 
-	loop {
+	for (var _i = 0u; _i < 256u; _i += 1u) {
 		hit.step_count += 1u;
 
 		let node = octree_get_node(parent + child);

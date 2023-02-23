@@ -2,6 +2,8 @@ mod camera;
 mod phase;
 mod shader;
 
+use std::num::NonZeroU32;
+
 pub use camera::*;
 pub use phase::*;
 pub use shader::*;
@@ -60,6 +62,10 @@ pub struct RenderContext<'a> {
     pub surface: &'a wgpu::Surface,
     pub texture: &'a wgpu::Texture,
     pub view: &'a wgpu::TextureView,
+    pub hdr_texture: &'a wgpu::Texture,
+    pub hdr_view: &'a wgpu::TextureView,
+    pub depth_texture: &'a wgpu::Texture,
+    pub depth_view: &'a wgpu::TextureView,
     pub world: &'a World,
     pub camera: &'a DrawCamera,
     pub width: u32,
@@ -75,7 +81,7 @@ pub struct Renderer {
     pub surface_config: wgpu::SurfaceConfiguration,
     pub needs_configure: bool,
     pub hdr_texture: wgpu::Texture,
-    pub hdr_view: wgpu::TextureView,
+    pub depth_texture: wgpu::Texture,
     pub camera: DrawCamera,
     pub octree_phase: OctreePhase,
     pub tonemap_phase: TonemapPhase,
@@ -85,6 +91,7 @@ pub struct Renderer {
 
 impl Renderer {
     pub const HDR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba16Float;
+    pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
 
     pub unsafe fn new(window: &winit::window::Window) -> anyhow::Result<Self> {
         let (surface, device, queue) = init_wgpu(window)?;
@@ -107,8 +114,10 @@ impl Renderer {
         let hdr_texture = Self::create_hdr_texture(&device, width, height, taa_samples);
         let hdr_view = hdr_texture.create_view(&Default::default());
 
+        let depth_texture = Self::create_depth_texture(&device, width, height);
+
         let camera = DrawCamera::new(&device)?;
-        let octree_phase = OctreePhase::new(&device, &camera, &hdr_view)?;
+        let octree_phase = OctreePhase::new(&device, &camera)?;
         let tonemap_phase = TonemapPhase::new(&device, &hdr_view)?;
 
         Ok(Self {
@@ -118,7 +127,7 @@ impl Renderer {
             surface_config,
             needs_configure: true,
             hdr_texture,
-            hdr_view,
+            depth_texture,
             camera,
             octree_phase,
             tonemap_phase,
@@ -144,9 +153,24 @@ impl Renderer {
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
             format: Self::HDR_FORMAT,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT
-                | wgpu::TextureUsages::STORAGE_BINDING
-                | wgpu::TextureUsages::TEXTURE_BINDING,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+            view_formats: &[],
+        })
+    }
+
+    fn create_depth_texture(device: &wgpu::Device, width: u32, height: u32) -> wgpu::Texture {
+        device.create_texture(&wgpu::TextureDescriptor {
+            label: None,
+            size: wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: Self::DEPTH_FORMAT,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
             view_formats: &[],
         })
     }
@@ -166,11 +190,10 @@ impl Renderer {
         let width = self.surface_config.width;
         let height = self.surface_config.height;
         self.hdr_texture = Self::create_hdr_texture(&self.device, width, height, self.taa_samples);
-        self.hdr_view = self.hdr_texture.create_view(&Default::default());
+        self.depth_texture = Self::create_depth_texture(&self.device, width, height);
 
-        self.octree_phase
-            .resized(&self.device, &self.camera, &self.hdr_view);
-        self.tonemap_phase.resized(&self.device, &self.hdr_view);
+        let hdr_view = self.hdr_texture.create_view(&Default::default());
+        self.tonemap_phase.resized(&self.device, &hdr_view);
     }
 
     pub fn aspect(&self) -> f32 {
@@ -212,6 +235,15 @@ impl Renderer {
         view: &wgpu::TextureView,
         world: &World,
     ) -> anyhow::Result<()> {
+        let hdr_view = self.hdr_texture.create_view(&wgpu::TextureViewDescriptor {
+            label: Some("hdr_view"),
+            dimension: Some(wgpu::TextureViewDimension::D2),
+            base_array_layer: self.taa_sample,
+            array_layer_count: NonZeroU32::new(1),
+            ..Default::default()
+        });
+        let depth_view = self.depth_texture.create_view(&Default::default());
+
         let cx = RenderContext {
             device: &self.device,
             queue: &self.queue,
@@ -219,6 +251,10 @@ impl Renderer {
             texture,
             view,
             world,
+            hdr_texture: &self.hdr_texture,
+            hdr_view: &hdr_view,
+            depth_texture: &self.depth_texture,
+            depth_view: &depth_view,
             camera: &self.camera,
             width: self.surface_config.width,
             height: self.surface_config.height,

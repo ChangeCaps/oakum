@@ -213,22 +213,11 @@ impl Octree {
                 return None;
             }
 
-            parent = stack[depth as usize - flip as usize];
-            child = extract_child(path, flip);
+            depth -= flip;
+            path = path >> flip;
 
-            for i in (1..=flip).rev() {
-                let node = self[parent + child];
-                if !node.is_parent() {
-                    depth -= i;
-                    path = path >> i;
-                    break;
-                }
-
-                let i = i - 1;
-                parent = node.pointer();
-                child = extract_child(path, i);
-                stack[depth as usize - i as usize] = parent;
-            }
+            parent = stack[depth as usize];
+            child = extract_child(path, 0);
         }
     }
 }

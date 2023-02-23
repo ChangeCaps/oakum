@@ -33,5 +33,5 @@ fn main(in: FragmentInput) -> @location(0) vec4<f32> {
 
 	color = color / f32(samples);
 
-	return vec4<f32>(color.rgb, 1.0);
+	return vec4<f32>(tonemap_aces(color.rgb), 1.0);
 }

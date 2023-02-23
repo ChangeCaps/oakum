@@ -245,58 +245,17 @@ macro_rules! impl_octree {
             }
 
             pub fn remove(&mut self, branch: impl Into<Branch>) {
-                let branch = branch.into();
-                let mut parent = self.root();
-
-                for depth in 0..branch.depth {
-                    let node = self[parent];
-
-                    if node.is_empty() {
-                        return;
-                    }
-
-                    if node.is_solid() {
-                        let new_branch = self.push_branch();
-
-                        for child in 0..8 {
-                            self[new_branch + child] = node;
-                        }
-
-                        self[parent] = Node::parent(new_branch);
-
-                        let child = branch.child(depth);
-                        parent = new_branch + child;
-                        continue;
-                    }
-
-                    let pointer = node.pointer();
-
-                    let mut chilren_empty = true;
-                    for child in 0..8 {
-                        chilren_empty &= self[pointer + child].is_empty();
-                    }
-
-                    if chilren_empty {
-                        self[parent] = Node::empty();
-                        self.remove_branch(pointer);
-                        return;
-                    }
-
-                    let child = branch.child(depth);
-                    parent = pointer + child;
-                }
-
-                self[parent] = Node::empty();
+                self.set(branch, Node::empty());
             }
 
-            pub fn join(&mut self, branch: impl Into<Branch>, depth: u32, other: &Octree) {
+            pub fn union(&mut self, branch: impl Into<Branch>, depth: u32, other: &Octree) {
                 let branch = branch.into();
 
                 for (other_branch, node) in other.iter_nodes() {
                     let mut other_branch = other_branch;
                     other_branch.depth += depth;
 
-                    let offset = other_branch.depth as i32 - branch.depth as i32 - depth as i32;
+                    let offset = other_branch.depth as i32 - branch.depth as i32;
 
                     if offset >= 0 {
                         other_branch.path += branch.path << offset;
@@ -329,7 +288,7 @@ macro_rules! impl_octree {
                     let mut other_branch = other_branch;
                     other_branch.depth += depth;
 
-                    let offset = other_branch.depth as i32 - branch.depth as i32 - depth as i32;
+                    let offset = other_branch.depth as i32 - branch.depth as i32;
 
                     if offset >= 0 {
                         other_branch.path += branch.path << offset;

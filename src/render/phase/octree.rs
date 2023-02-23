@@ -1,8 +1,8 @@
 use std::{mem, num::NonZeroU32};
 
 use bytemuck::{Pod, Zeroable};
-use glam::{Mat4, Vec3};
-use log::{debug, trace};
+use glam::{Mat4, UVec2, Vec3};
+use log::trace;
 
 use crate::{
     octree::{DynamicOctree, Node, Segment},
@@ -14,7 +14,7 @@ pub struct OctreePipeline {
     pub light_layout: wgpu::BindGroupLayout,
     pub octree_layout: wgpu::BindGroupLayout,
     pub layout: wgpu::PipelineLayout,
-    pub compute_pipeline: wgpu::ComputePipeline,
+    pub render_pipeline: wgpu::RenderPipeline,
 }
 
 impl OctreePipeline {
@@ -25,7 +25,7 @@ impl OctreePipeline {
                 // camera
                 wgpu::BindGroupLayoutEntry {
                     binding: 0,
-                    visibility: wgpu::ShaderStages::COMPUTE,
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
@@ -35,17 +35,7 @@ impl OctreePipeline {
                 },
                 wgpu::BindGroupLayoutEntry {
                     binding: 1,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::StorageTexture {
-                        access: wgpu::StorageTextureAccess::WriteOnly,
-                        format: Renderer::HDR_FORMAT,
-                        view_dimension: wgpu::TextureViewDimension::D2Array,
-                    },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 2,
-                    visibility: wgpu::ShaderStages::COMPUTE,
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
@@ -67,7 +57,7 @@ impl OctreePipeline {
                 // octree
                 wgpu::BindGroupLayoutEntry {
                     binding: 0,
-                    visibility: wgpu::ShaderStages::COMPUTE,
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                     ty: wgpu::BindingType::Texture {
                         sample_type: wgpu::TextureSampleType::Uint,
                         view_dimension: wgpu::TextureViewDimension::D3,
@@ -78,7 +68,7 @@ impl OctreePipeline {
                 // octree uniform
                 wgpu::BindGroupLayoutEntry {
                     binding: 1,
-                    visibility: wgpu::ShaderStages::COMPUTE,
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
@@ -95,8 +85,7 @@ impl OctreePipeline {
             push_constant_ranges: &[],
         });
 
-        /*
-        let vertex_shader = open_shader(device, "assets/shaders/pbr_vert.wgsl")?;
+        let vertex_shader = open_shader(device, "assets/shaders/fullscreen.wgsl")?;
         let fragment_shader = open_shader(device, "assets/shaders/pbr_frag.wgsl")?;
 
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -111,31 +100,38 @@ impl OctreePipeline {
                 entry_point: "main",
                 module: &fragment_shader,
                 targets: &[Some(wgpu::ColorTargetState {
-                    format: wgpu::TextureFormat::Bgra8UnormSrgb,
+                    format: Renderer::HDR_FORMAT,
                     blend: Some(wgpu::BlendState::ALPHA_BLENDING),
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
             }),
             primitive: Default::default(),
-            depth_stencil: Default::default(),
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: Renderer::DEPTH_FORMAT,
+                depth_write_enabled: true,
+                depth_compare: wgpu::CompareFunction::LessEqual,
+                stencil: Default::default(),
+                bias: Default::default(),
+            }),
             multisample: Default::default(),
             multiview: None,
         });
-        */
 
+        /*
         let compute_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
             label: Some("Octree Pipeline"),
             layout: Some(&layout),
             module: &open_shader(device, "assets/shaders/pbr_comp.wgsl")?,
             entry_point: "main",
         });
+        */
 
         Ok(Self {
             uniform_layout,
             light_layout,
             octree_layout,
             layout,
-            compute_pipeline,
+            render_pipeline,
         })
     }
 }
@@ -349,21 +345,36 @@ impl DrawOctree {
         offset: &mut usize,
         size: &mut usize,
         row: &mut usize,
-        page: usize,
+        page: &mut usize,
         bytes: &[u8],
     ) {
         let row_offset = *offset % self.bytes_per_row() as usize;
         if row_offset > 0 {
             let row_size = usize::min(self.bytes_per_row() as usize - row_offset, *size);
+
+            trace!(
+                "Writing {} bytes to row {} of page {} at offset {} (first row)",
+                row_size,
+                row,
+                page,
+                offset,
+            );
+
             self.write_row(
                 queue,
                 row_offset as u32,
                 *row as u32,
-                page as u32,
+                *page as u32,
                 &bytes[*offset..*offset + row_size],
             );
 
-            *row += 1;
+            if *row < self.page_height as usize - 1 {
+                *row += 1;
+            } else {
+                *page += 1;
+                *row = 0;
+            }
+
             *offset += row_size;
             *size -= row_size;
         }
@@ -375,7 +386,7 @@ impl DrawOctree {
         offset: &mut usize,
         size: &mut usize,
         row: &mut usize,
-        page: usize,
+        page: &mut usize,
         bytes: &[u8],
     ) {
         let page_offset = *row % self.page_height as usize;
@@ -384,18 +395,31 @@ impl DrawOctree {
             *size / self.bytes_per_row() as usize,
         );
 
-        if rows > 0 {
+        if page_offset > 0 && rows > 0 {
+            trace!(
+                "Writing {} rows to page {} at offset {} (first rows)",
+                rows,
+                page,
+                offset,
+            );
+
             self.write_rows(
                 queue,
                 page_offset as u32,
                 rows as u32,
-                page as u32,
+                *page as u32,
                 &bytes[*offset..],
             );
 
             let written = rows * self.bytes_per_row() as usize;
 
-            *row += rows;
+            if *row + rows < self.page_height as usize {
+                *row += rows;
+            } else {
+                *page += 1;
+                *row = 0;
+            }
+
             *offset += written;
             *size -= written;
         }
@@ -411,6 +435,8 @@ impl DrawOctree {
     ) {
         let pages = *size / self.bytes_per_page() as usize;
         if pages > 0 {
+            trace!("Writing {} pages to offset {} (full pages)", pages, offset,);
+
             self.write_pages(queue, *page as u32, pages as u32, &bytes[*offset..]);
             let written = pages * self.bytes_per_page() as usize;
 
@@ -431,6 +457,13 @@ impl DrawOctree {
     ) {
         let rows = *size / self.bytes_per_row() as usize;
         if rows > 0 {
+            trace!(
+                "Writing {} rows to page {} at offset {} (last rows)",
+                rows,
+                page,
+                offset,
+            );
+
             self.write_rows(queue, 0, rows as u32, page as u32, &bytes[*offset..]);
 
             let written = rows * self.bytes_per_row() as usize;
@@ -451,6 +484,14 @@ impl DrawOctree {
         bytes: &[u8],
     ) {
         if size > 0 {
+            trace!(
+                "Writing {} bytes to row {} of page {} at offset {} (last row)",
+                size,
+                row,
+                page,
+                offset,
+            );
+
             let data = &bytes[offset..offset + size];
             self.write_row(queue, 0, row as u32, page as u32, data);
         }
@@ -462,17 +503,16 @@ impl DrawOctree {
 
         let mut row = offset / self.bytes_per_row() as usize;
         let mut page = row / self.page_height as usize;
+        row %= self.page_height as usize;
 
-        self.write_first_row(queue, &mut offset, &mut size, &mut row, page, bytes);
-        self.write_first_rows(queue, &mut offset, &mut size, &mut row, page, bytes);
+        self.write_first_row(queue, &mut offset, &mut size, &mut row, &mut page, bytes);
+        self.write_first_rows(queue, &mut offset, &mut size, &mut row, &mut page, bytes);
         self.write_full_pages(queue, &mut offset, &mut size, &mut page, bytes);
         self.write_last_rows(queue, &mut offset, &mut size, &mut row, page, bytes);
         self.write_last_row(queue, offset, size, row, page, bytes);
     }
 
     fn write_row(&self, queue: &wgpu::Queue, offset: u32, row: u32, page: u32, bytes: &[u8]) {
-        trace!("Writing row {} of page {} to octree texture", row, page);
-
         queue.write_texture(
             wgpu::ImageCopyTexture {
                 texture: &self.texture,
@@ -499,13 +539,6 @@ impl DrawOctree {
     }
 
     pub fn write_rows(&self, queue: &wgpu::Queue, row: u32, rows: u32, page: u32, bytes: &[u8]) {
-        trace!(
-            "Writing {} rows starting at {} of page {} to octree texture",
-            rows,
-            row,
-            page
-        );
-
         queue.write_texture(
             wgpu::ImageCopyTexture {
                 texture: &self.texture,
@@ -532,12 +565,6 @@ impl DrawOctree {
     }
 
     fn write_pages(&self, queue: &wgpu::Queue, page: u32, pages: u32, bytes: &[u8]) {
-        trace!(
-            "Writing {} pages starting at {} to octree texture",
-            pages,
-            page
-        );
-
         queue.write_texture(
             wgpu::ImageCopyTexture {
                 texture: &self.texture,
@@ -564,36 +591,35 @@ impl DrawOctree {
     }
 }
 
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, Pod, Zeroable)]
+pub struct OctreePhaseUniforms {
+    pub taa_sample: u32,
+    pub padding: [u8; 4],
+    pub dimensions: UVec2,
+}
+
 pub struct OctreePhase {
     pub pipeline: OctreePipeline,
-    pub taa_sample_buffer: wgpu::Buffer,
+    pub uniform_buffer: wgpu::Buffer,
     pub uniform_bind_group: wgpu::BindGroup,
     pub light_bind_group: wgpu::BindGroup,
     pub draw_octree: DrawOctree,
 }
 
 impl OctreePhase {
-    pub fn new(
-        device: &wgpu::Device,
-        camera: &DrawCamera,
-        hdr_view: &wgpu::TextureView,
-    ) -> anyhow::Result<Self> {
+    pub fn new(device: &wgpu::Device, camera: &DrawCamera) -> anyhow::Result<Self> {
         let pipeline = OctreePipeline::new(device)?;
 
-        let taa_sample_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("TAA Sample Buffer"),
-            size: mem::size_of::<u32>() as u64,
+        let uniform_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Octree Phase Uniform Buffer"),
+            size: mem::size_of::<OctreePhaseUniforms>() as u64,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
 
-        let uniform_bind_group = Self::create_uniform_bind_group(
-            &pipeline,
-            device,
-            camera,
-            hdr_view,
-            &taa_sample_buffer,
-        );
+        let uniform_bind_group =
+            Self::create_uniform_bind_group(&pipeline, device, camera, &uniform_buffer);
 
         let light_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("Light Bind Group"),
@@ -605,7 +631,7 @@ impl OctreePhase {
 
         Ok(Self {
             pipeline,
-            taa_sample_buffer,
+            uniform_buffer,
             light_bind_group,
             draw_octree,
             uniform_bind_group,
@@ -616,8 +642,7 @@ impl OctreePhase {
         pipeline: &OctreePipeline,
         device: &wgpu::Device,
         camera: &DrawCamera,
-        hdr_view: &wgpu::TextureView,
-        taa_sample_buffer: &wgpu::Buffer,
+        uniform_buffer: &wgpu::Buffer,
     ) -> wgpu::BindGroup {
         device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("Uniform Bind Group"),
@@ -629,29 +654,10 @@ impl OctreePhase {
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: wgpu::BindingResource::TextureView(hdr_view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 2,
-                    resource: taa_sample_buffer.as_entire_binding(),
+                    resource: uniform_buffer.as_entire_binding(),
                 },
             ],
         })
-    }
-
-    pub fn resized(
-        &mut self,
-        device: &wgpu::Device,
-        camera: &DrawCamera,
-        hdr_view: &wgpu::TextureView,
-    ) {
-        self.uniform_bind_group = Self::create_uniform_bind_group(
-            &self.pipeline,
-            device,
-            camera,
-            hdr_view,
-            &self.taa_sample_buffer,
-        );
     }
 
     pub fn render(
@@ -667,18 +673,47 @@ impl OctreePhase {
         );
         (self.draw_octree).write_dynamic(cx.queue, &cx.world.octree);
         (self.draw_octree).write_uniform(cx.queue, Mat4::from_scale(Vec3::splat(10.0)));
-        cx.queue.write_buffer(
-            &self.taa_sample_buffer,
-            0,
-            bytemuck::bytes_of(&cx.taa_sample),
-        );
 
-        let mut pass = encoder.begin_compute_pass(&Default::default());
-        pass.set_pipeline(&self.pipeline.compute_pipeline);
+        let uniforms = OctreePhaseUniforms {
+            taa_sample: cx.taa_sample,
+            dimensions: UVec2::new(cx.width, cx.height),
+            ..Default::default()
+        };
+
+        cx.queue
+            .write_buffer(&self.uniform_buffer, 0, bytemuck::bytes_of(&uniforms));
+
+        let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("Octree Pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: &cx.hdr_view,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color {
+                        r: 0.0,
+                        g: 0.0,
+                        b: 0.0,
+                        a: 0.0,
+                    }),
+                    store: true,
+                },
+            })],
+            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                view: &cx.depth_view,
+                depth_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(1.0),
+                    store: true,
+                }),
+                stencil_ops: None,
+            }),
+        });
+
+        pass.set_pipeline(&self.pipeline.render_pipeline);
         pass.set_bind_group(0, &self.uniform_bind_group, &[]);
         pass.set_bind_group(1, &self.light_bind_group, &[]);
         pass.set_bind_group(2, &self.draw_octree.bind_group, &[]);
-        pass.dispatch_workgroups(cx.width / 16 + 1, cx.height / 16 + 1, 1);
+
+        pass.draw(0..6, 0..1);
 
         Ok(())
     }

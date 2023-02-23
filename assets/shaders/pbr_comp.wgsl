@@ -10,27 +10,23 @@
 var render_target: texture_storage_2d_array<rgba16float, write>;
 
 @group(0) @binding(2)
+var depth_target: texture_storage_2d<depth32float, write>;
+
+@group(0) @binding(3)
 var<uniform> taa_sample: i32;
 
 fn sample(clip: vec2<f32>) -> vec4<f32> {
 	let ray = camera_ray(clip);
 
 	let hit = octree_ray_cast(ray, true);
-
-	//if true { return vec4<f32>(f32(hit.step_count) / 64.0, 0.0, 0.0, 0.0); }
-
 	if !hit.hit { return vec4<f32>(0.48, 0.84, 0.83, 1.0); }
 
 	let sun_dir = normalize(vec3<f32>(0.9, 1.0, -0.8));
-	var sun_dif = dot(sun_dir, normalize(hit.normal)) * 0.35 + 0.7;
-
-	if !node_is_shadow(hit.node) {
-		sun_dif = abs(dot(sun_dir, normalize(hit.normal))) * 0.6 + 0.6;
-	}
+	var sun_dif = abs(dot(sun_dir, normalize(hit.normal))) * 0.35 + 0.65;	
 
 	let shadow_ray = Ray(hit.position + hit.normal * EPSILON, sun_dir);
 	let shadow_hit = octree_ray_cast(shadow_ray, false);
-	let shadow = f32(!shadow_hit.hit) * 0.3 + sun_dif;
+	let shadow = f32(!shadow_hit.hit) * 0.3 + sun_dif * 0.7;
 
 	let color = node_color(hit.node).rgb * shadow;
 	return vec4<f32>(color, 1.0);

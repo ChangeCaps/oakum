@@ -11,8 +11,8 @@ use winit::{
 };
 
 use crate::{
-    generate::GrassBlock,
-    input::{Keyboard, Mouse},
+    generate::{GrassBlock, Sphere},
+    input::{Key, Keyboard, Mouse},
     octree::{Branch, Octree},
     render::Renderer,
     world::World,
@@ -32,7 +32,7 @@ pub struct App {
     pub mouse: Mouse,
     pub keyboard: Keyboard,
     pub last_frame: Instant,
-    pub grass: Octree,
+    pub sphere: Octree,
 }
 
 impl App {
@@ -41,12 +41,15 @@ impl App {
         let mut world = World::new();
 
         let grass = Octree::generate(&GrassBlock);
+        let sphere = Octree::generate(&Sphere);
 
-        for x in -4..4 {
-            for z in -4..4 {
-                world
-                    .octree
-                    .join((x * 32 + 16, 0, z * 32 + 16, 6), 4, &grass);
+        for x in -8..8 {
+            for y in -8..8 {
+                for z in -8..8 {
+                    world
+                        .octree
+                        .union((x * 16 + 8, y * 16 + 8, z * 16 + 8, 10), 5, &grass);
+                }
             }
         }
 
@@ -57,7 +60,7 @@ impl App {
             mouse: Mouse::default(),
             keyboard: Keyboard::default(),
             last_frame: Instant::now(),
-            grass,
+            sphere,
         }
     }
 
@@ -74,16 +77,29 @@ impl App {
 
         self.world.update(cx);
 
-        if self.mouse.is_held(MouseButton::Left) {
+        if self.mouse.is_pressed(MouseButton::Right)
+            || self.mouse.is_held(MouseButton::Right) && self.keyboard.is_held(Key::F)
+        {
             let w = self.window.inner_size().width;
             let h = self.window.inner_size().height;
             let ray = self.world.camera.mouse_ray(w, h, self.mouse.position);
 
             let scale = Mat4::from_scale(Vec3::splat(10.0));
             if let Some(hit) = self.world.octree.raycast(scale, ray) {
-                let mut branch = Branch::from_point(scale, hit.point, 10);
-                branch.depth = 6;
-                self.world.octree.difference(branch, 4, &self.grass);
+                let branch = Branch::from_point(scale, hit.point, 10);
+                self.world.octree.difference(branch, 4, &self.sphere);
+            }
+        } else if self.mouse.is_pressed(MouseButton::Left)
+            || self.mouse.is_held(MouseButton::Left) && self.keyboard.is_held(Key::F)
+        {
+            let w = self.window.inner_size().width;
+            let h = self.window.inner_size().height;
+            let ray = self.world.camera.mouse_ray(w, h, self.mouse.position);
+
+            let scale = Mat4::from_scale(Vec3::splat(10.0));
+            if let Some(hit) = self.world.octree.raycast(scale, ray) {
+                let branch = Branch::from_point(scale, hit.point, 10);
+                self.world.octree.union(branch, 4, &self.sphere);
             }
         }
 
