@@ -1,0 +1,22 @@
+[package]
+name = "oakum"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "1.0"
+clap = { version = "4.1", features = ["derive"] }
+env_logger = "0.10"
+bytemuck = { version = "1.13", features = ["derive"] }
+deref-derive = "0.1"
+glam = { version = "0.23", features = ["bytemuck"] }
+log = "0.4"
+hyena = "0.2.4"
+noise = "0.8"
+regex = "1.7"
+serde = { version = "1.0", features = ["derive"] }
+thiserror = "1"
+wgpu = "0.15"
+winit = "0.28"

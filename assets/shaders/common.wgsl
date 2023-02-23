@@ -1,0 +1,4 @@
+#pragma once
+
+const EPSILON = 0.00001;
+const PI = 3.1415926535897932384626433832795;
