@@ -280,7 +280,7 @@ macro_rules! impl_octree {
                                 other_branch.path = other_branch.path << -offset;
                                 other_branch.path += branch.path;
                                 other_branch.path += IVec3::new(x, y, z);
-                                other_branch.depth -= offset as u32;
+                                other_branch.depth += -offset as u32;
                                 self.set(other_branch, *node);
                             }
                         }
@@ -313,7 +313,7 @@ macro_rules! impl_octree {
                                 other_branch.path = other_branch.path << -offset;
                                 other_branch.path += branch.path;
                                 other_branch.path += IVec3::new(x, y, z);
-                                other_branch.depth -= offset as u32;
+                                other_branch.depth += -offset as u32;
                                 self.remove(other_branch);
                             }
                         }

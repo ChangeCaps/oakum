@@ -28,8 +28,8 @@ impl TonemapPipeline {
             push_constant_ranges: &[],
         });
 
-        let vertex_shader = open_shader(device, "embedded://fullscreen.wgsl")?;
-        let fragment_shader = open_shader(device, "embedded://tonemap.wgsl")?;
+        let vertex_shader = open_shader(device, "assets/shaders/fullscreen.wgsl")?;
+        let fragment_shader = open_shader(device, "assets/shaders/tonemap.wgsl")?;
 
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Tonemap Pipeline"),

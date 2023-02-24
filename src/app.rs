@@ -41,7 +41,7 @@ impl App {
         let mut world = World::new();
 
         let grass = Octree::generate(&GrassBlock);
-        let sphere = Octree::generate(&Sphere);
+        let sphere = Octree::generate(&Sphere::new(32, 6));
 
         for x in -8..8 {
             for y in -8..8 {

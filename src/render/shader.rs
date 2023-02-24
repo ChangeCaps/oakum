@@ -5,6 +5,8 @@ use std::{
     sync::Mutex,
 };
 
+use log::debug;
+
 struct EmbeddedShader {
     path: &'static str,
     source: &'static str,
@@ -12,28 +14,25 @@ struct EmbeddedShader {
 
 macro_rules! embedded_shader {
     ($path:literal) => {
+        #[cfg(feature = "embedded-assets")]
         EmbeddedShader {
             path: concat!("embedded://", $path),
-            source: include_str!(concat!(
-                env!("CARGO_MANIFEST_DIR"),
-                "/assets/shaders/",
-                $path
-            )),
+            source: include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/", $path)),
         }
     };
 }
 
 const EMBEDDED_SHADERS: &[EmbeddedShader] = &[
-    embedded_shader!("camera.wgsl"),
-    embedded_shader!("common.wgsl"),
-    embedded_shader!("fullscreen.wgsl"),
-    embedded_shader!("fullscreen_input.wgsl"),
-    embedded_shader!("octree.wgsl"),
-    embedded_shader!("pbr_comp.wgsl"),
-    embedded_shader!("pbr_frag.wgsl"),
-    embedded_shader!("poisson.wgsl"),
-    embedded_shader!("ray.wgsl"),
-    embedded_shader!("tonemap.wgsl"),
+    embedded_shader!("assets/shaders/camera.wgsl"),
+    embedded_shader!("assets/shaders/common.wgsl"),
+    embedded_shader!("assets/shaders/fullscreen.wgsl"),
+    embedded_shader!("assets/shaders/fullscreen_input.wgsl"),
+    embedded_shader!("assets/shaders/octree.wgsl"),
+    embedded_shader!("assets/shaders/pbr_comp.wgsl"),
+    embedded_shader!("assets/shaders/pbr_frag.wgsl"),
+    embedded_shader!("assets/shaders/poisson.wgsl"),
+    embedded_shader!("assets/shaders/ray.wgsl"),
+    embedded_shader!("assets/shaders/tonemap.wgsl"),
 ];
 
 #[derive(Clone, Debug)]
@@ -103,6 +102,7 @@ impl ShaderFile {
     fn open_shader_source(path: &Path) -> Result<String, ShaderError> {
         // first try to find the shader in the embedded shaders
         if let Some(embedded_shader) = Self::find_embedded_shader(path) {
+            debug!("Loading embedded shader: {}", path.display());
             return Ok(embedded_shader.source.to_string());
         }
 
@@ -110,8 +110,13 @@ impl ShaderFile {
         // try to find it in the embedded shaders
         if !path.exists() {
             let embedded_path = Path::new("embedded://").join(path);
+            debug!(
+                "Failed to find shader: {}, trying find embedded shader",
+                path.display(),
+            );
 
             if let Some(embedded_shader) = Self::find_embedded_shader(&embedded_path) {
+                debug!("Loading embedded shader: {}", path.display());
                 return Ok(embedded_shader.source.to_string());
             }
         }

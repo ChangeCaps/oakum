@@ -106,7 +106,7 @@ impl Renderer {
             format: wgpu::TextureFormat::Bgra8Unorm,
             width,
             height,
-            present_mode: wgpu::PresentMode::Fifo,
+            present_mode: wgpu::PresentMode::Immediate,
             alpha_mode: wgpu::CompositeAlphaMode::Opaque,
             view_formats: vec![],
         };

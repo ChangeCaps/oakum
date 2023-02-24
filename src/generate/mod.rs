@@ -1,8 +1,10 @@
 mod block;
-
-use std::cmp::Ordering;
+mod shape;
 
 pub use block::*;
+pub use shape::*;
+
+use std::cmp::Ordering;
 
 use glam::{UVec3, Vec3};
 
@@ -38,26 +40,5 @@ impl Eq for Sdf {}
 impl PartialOrd for Sdf {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         self.distance.partial_cmp(&other.distance)
-    }
-}
-
-#[derive(Clone, Copy, Debug, Default)]
-pub struct Sphere;
-
-impl Generate for Sphere {
-    fn dimensions(&self) -> UVec3 {
-        UVec3::splat(32)
-    }
-
-    fn depth(&self) -> u32 {
-        6
-    }
-
-    fn get_node(&self, point: Vec3) -> Option<Node> {
-        if point.length() < 1.0 {
-            Some(Node::solid(255, 255, 255))
-        } else {
-            None
-        }
     }
 }
